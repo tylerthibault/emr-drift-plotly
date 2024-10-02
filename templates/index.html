@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block top %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+{% endblock top %}
+
+
+{% block content %}
+
+
+<div>
+    <h1>Graph</h1>
+</div>
+
+<div id="graph"></div>
+
+
+<script type="text/javascript">
+    // Get the data passed from Flask
+    var dates = {{ dates | tojson }};
+    var values = {{ values | tojson }};
+    var y_fit = {{ y_fit | tojson }};
+    var slope = {{ slope }};
+    var intercept = {{ intercept }};
+
+    // Create the trace for the original data
+    var traceOriginal = {
+        x: dates,
+        y: values,
+        mode: 'lines+markers',
+        type: 'scatter',
+        name: 'Random Values'
+    };
+
+    // Create the trace for the best-fit line
+    var traceFit = {
+        x: dates,
+        y: y_fit,
+        mode: 'lines',
+        type: 'scatter',
+        name: `Best Fit Line (Slope: ${slope.toFixed(2)})`,
+        line: {
+            dash: 'dot',
+            color: 'red'
+        }
+    };
+
+    var data = [traceOriginal, traceFit];
+
+    var layout = {
+        title: 'Random Values Over Time',
+        xaxis: {
+            title: 'Date'
+        },
+        yaxis: {
+            title: 'Value'
+        }
+    };
+
+    Plotly.newPlot('graph', data, layout);
+</script>
+{% endblock content %}

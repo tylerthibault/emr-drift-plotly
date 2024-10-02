@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask Plotly Graph</title>
+    <!-- Include Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <h1>Graph of Percentage of Full Scale (%FS) Over Time</h1>
+    <div id="graph"></div>
+
+    <!-- Tolerance Input -->
+    <div id="tolerance-input">
+        <label for="tolerance">Set Tolerance (%FS): </label>
+        <input type="number" id="tolerance" value="5">
+        <button onclick="checkTolerance()">Check Tolerance</button>
+    </div>
+
+    <!-- Slope Information and Tolerance Result -->
+    <div id="slope-info">
+        <p><strong>Slope of Selected Range:</strong> <span id="slope-value">N/A</span></p>
+        <p><strong>Tolerance Status:</strong> <span id="tolerance-result">N/A</span></p>
+    </div>
+
+    <script type="text/javascript">
+        // Get the data passed from Flask
+        var dates = {{ dates | tojson }};
+        var values = {{ values | tojson }};
+        var y_fit = {{ y_fit | tojson }};
+        var slope = {{ slope }};
+        var intercept = {{ intercept }};
+    
+        // Create the trace for the original data
+        var traceOriginal = {
+            x: dates,
+            y: values,
+            mode: 'lines+markers',
+            type: 'scatter',
+            name: 'Percentage of Full Scale (%FS)'
+        };
+    
+        // Create the trace for the best-fit line
+        var traceFit = {
+            x: dates,
+            y: y_fit,
+            mode: 'lines',
+            type: 'scatter',
+            name: `Best Fit Line (Slope: ${slope.toFixed(2)})`,
+            line: {
+                dash: 'dot',
+                color: 'red'
+            }
+        };
+    
+        var data = [traceOriginal, traceFit];
+    
+        var layout = {
+            title: 'Percentage of Full Scale (%FS) Over Time',
+            xaxis: {
+                title: 'Date',
+                rangeslider: { visible: true }
+            },
+            yaxis: {
+                title: 'Percentage of Full Scale (%FS)'
+            },
+            dragmode: 'select' // Allow selecting a specific range
+        };
+    
+        Plotly.newPlot('graph', data, layout);
+    
+        // Handle selection event
+        var graphDiv = document.getElementById('graph');
+        graphDiv.on('plotly_selected', function(eventData) {
+            if (eventData) {
+                // Extract the selected data points
+                var selectedDates = [];
+                var selectedValues = [];
+    
+                eventData.points.forEach(function(pt) {
+                    selectedDates.push(pt.x);
+                    selectedValues.push(pt.y);
+                });
+    
+                // Send selected data to Flask via an AJAX request
+                fetch('/process_selection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        dates: selectedDates,
+                        values: selectedValues,
+                        tolerance: parseFloat(document.getElementById('tolerance').value)
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Update the slope and tolerance status on the page
+                    document.getElementById('slope-value').innerText = data.slope.toFixed(2);
+                    document.getElementById('tolerance-result').innerText = data.tolerance_status;
+                    document.getElementById('tolerance-result').style.color = data.tolerance_status === "PASS" ? "green" : "red";
+    
+                    // Update the best-fit line on the graph
+                    var update = {
+                        x: [selectedDates],
+                        y: [data.y_fit],
+                        line: { color: 'blue' }
+                    };
+                    Plotly.update('graph', update, [1]); // Update only the best-fit line trace
+                });
+            }
+        });
+    </script>
+    
+</body>
+</html>
