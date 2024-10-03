@@ -1,106 +1,122 @@
+
 from flask import Flask, render_template, redirect, session, request, jsonify
+import helper
 import pandas as pd
 import numpy as np
 
 app = Flask(__name__)
 app.secret_key = "shhhhhhhhhhhhhhhhhhhhhhh"
 
+app.temp_storage = {}
 
-@app.route('/')
+@app.route("/")
 def index():
-    x = get_dates()
-    y = get_values().tolist()
+    if 'pns' not in app.temp_storage:
+        print("setting pns")
+        app.temp_storage['pns'] = []
 
-    # Convert dates to a numerical form to use with polyfit
-    x_numeric = np.arange(len(x))
+    context = {
+        'pns': app.temp_storage['pns']
+    }
+    return render_template('index.html', **context)
 
-    # Calculate the slope and intercept for the best-fit line
-    slope, intercept = np.polyfit(x_numeric, y, 1)
+@app.route('/get_data')
+def get_data():
+    pn_list = helper.get_pn(30)
 
-    # Generate the y-values for the best-fit line using the calculated slope and intercept
-    y_fit = (slope * x_numeric + intercept).tolist()
+    datapoints = []
 
-    # Pass x, y, and y_fit to the template
-    return render_template('/index.html', dates=x, values=y, y_fit=y_fit, slope=slope, intercept=intercept)
+    for num in pn_list:
+        for x in range(30):
+            datapoints.append(
+                {
+                    'date' : helper.get_dates(1),
+                    'value' : helper.get_values(1),
+                    'pn' : pn_list[x],
+                }
+            )
 
-@app.route('/millivolts')
-def millivolts():
-    # Define the Full Scale (FS) value
-    FS = 5000  # example: Full Scale is 5000 millivolts
+    return render_template('/get_data.html', datapoints = datapoints)
 
-    # Get the original y values in millivolts
-    y_mV = get_values().tolist()
+@app.route('/process', methods=['GET', 'POST'])
+@app.route('/process/<pn>', methods=['GET'])
+def process(pn=-1):
+    if pn != -1:
+        data = {'pn': pn}
+    elif request.method == "GET":
+        data = {'pn':app.temp_storage['pns'][-1]}
+    else:
+        data = {**request.form}
+    pn = data['pn']
+    part_list = helper.search(data['pn'])
+
+    plot_fig = helper.get_graph(part_list)
+
+    if 'remember' in data:
+        session['remember'] = pn
+    else:
+        if 'remember' in session:
+            del session['remember']
+
     
-    y_mV[1] = 3000
-    y_mV[5] = -3000
+    if pn not in app.temp_storage['pns']:
+        app.temp_storage['pns'].append(pn)
 
 
-    # Convert y values to %FS
-    y_percentage_fs = [(value / FS) * 100 for value in y_mV]
+    app.temp_storage['part_list'] = part_list
+    app.temp_storage['plot_fig'] = plot_fig
+    return redirect('/display')
 
-    # Get the x values (dates)
-    x = get_dates()  # Already a list of strings
+@app.post('/bulk/process')
+def bulk_upload():
+    data = {**request.form}
+    part_numbers_str = data['part_numbers']
+    # Step 1: Clean and split the part numbers string
+    part_numbers_list = [pn.strip() for pn in part_numbers_str.splitlines() if pn.strip()]
 
-    # Convert to a numeric form for calculating the linear fit
-    x_numeric = np.arange(len(x))
+    # Step 2: Initialize a list to store the HTML representations of the graphs
+    graphs_html = []
 
-    # Calculate the slope and intercept for the best-fit line in terms of %FS
-    slope, intercept = np.polyfit(x_numeric, y_percentage_fs, 1)
+    # Step 3: Loop through each part number, get the data, and generate the graph
+    for pn in part_numbers_list:
+        # Search for the data using the helper function
+        part_list = helper.search(pn)
 
-    # Generate the y-values for the best-fit line using the calculated slope and intercept
-    y_fit = (slope * x_numeric + intercept).tolist()
+        # Generate the graph using the helper function
+        plot_html = helper.get_graph(part_list)
 
-    # Pass x, y_percentage_fs, and y_fit to the template
-    return render_template('/millivolts.html', dates=x, values=y_percentage_fs, y_fit=y_fit, slope=slope, intercept=intercept)
+        # Append the HTML representation of the graph to the list
+        graphs_html.append(plot_html)
+    
+    app.temp_storage['graphs_html'] = graphs_html
+    return redirect("/display/bulk")
 
-@app.route('/millivolts/2')
-def millivolts2():
-    x = get_dates()
-    y = get_values().tolist()
+@app.route("/display/bulk")
+def display_bulk():
+    context = {
+        'graphs_html': app.temp_storage['graphs_html']
+    }
+    return render_template('display_bulk.html', **context)
 
-    # Calculate initial slope and intercept for the entire data set
-    x_numeric = np.arange(len(x))
-    slope, intercept = np.polyfit(x_numeric, y, 1)
-    y_fit = (slope * x_numeric + intercept).tolist()
+@app.route('/display')
+def display():
+    if not app.temp_storage:
+        return redirect('/process')
+    
 
-    return render_template('/millivolts2.html', dates=x, values=y, y_fit=y_fit, slope=slope, intercept=intercept)
+    context = {
+        'part_list': app.temp_storage['part_list'],
+        'plot_fig': app.temp_storage['plot_fig'],
+        'pns': app.temp_storage['pns'],
 
+    }
+    return render_template('display.html', **context)
 
-@app.route('/process_selection', methods=['POST'])
-def process_selection():
-    data = request.get_json()
-    selected_dates = data['dates']
-    selected_values = data['values']
-    tolerance = data['tolerance']
-
-    # Convert selected dates to numeric indices for calculation
-    x_numeric = np.arange(len(selected_dates))
-
-    # Calculate the slope and intercept for the selected range
-    slope, intercept = np.polyfit(x_numeric, selected_values, 1)
-
-    # Generate new y-values for the best-fit line using the calculated slope and intercept
-    y_fit = (slope * x_numeric + intercept).tolist()
-
-    # Check if the selected range meets the tolerance
-    min_value = min(selected_values)
-    max_value = max(selected_values)
-    range_value = max_value - min_value
-    tolerance_status = "PASS" if range_value <= tolerance else "FAIL"
-
-    return jsonify({
-        'slope': slope,
-        'y_fit': y_fit,
-        'tolerance_status': tolerance_status
-    })
-
-
-def get_values():
-    return np.random.randint(50, 150, size=30)
-
-def get_dates():
-    dates = pd.date_range(start=pd.Timestamp.now(), periods=30, freq='D')
-    return dates.strftime('%Y-%m-%d').tolist()
+@app.route('/clear/pns')
+def clear_pns():
+    if 'pns' in app.temp_storage:
+        del app.temp_storage['pns']
+    return redirect('/')
 
 # keep this at the bottom of this file!!
 if __name__=="__main__":

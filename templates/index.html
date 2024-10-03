@@ -7,56 +7,52 @@
 
 {% block content %}
 
-
-<div>
-    <h1>Graph</h1>
+<div class="form-wrapper">
+    <div class="flex flex-col gap-2">
+        <div class="form-container">
+            <h2 class="text-2xl">Part Lookup</h2>
+            <form action="/process" method="post">
+                <div class="form-group">
+                    <label class="hidden" for="pn">Part Number</label>
+                    <input type="text" id="pn" name="pn" placeholder="Enter part number"
+                        value="{{ session['remember'] }}" required>
+                </div>
+                <div class="flex gap-3 items-center">
+                    {% if 'remember' in session %}
+                    <input type="checkbox" name="remember" id="remember" checked>
+                    {% else %}
+                    <input type="checkbox" name="remember" id="remember">
+                    {% endif %}
+                    <label for="remember">Remember</label>
+                </div>
+                <button type="submit" class="btn-submit">Search</button>
+            </form>
+        </div>
+        <div class="form-container">
+            <h2 class="text-2xl">Bulk Upload Part Numbers</h2>
+            <form action="/bulk/process" method="POST">
+                <div class="form-group">
+                    <label for="part-numbers">Enter Part Numbers (separate by commas or new lines):</label>
+                    <textarea class="w-full" id="part-numbers" name="part_numbers" rows="5"
+                        placeholder="1234567890, 0987654321, ..."></textarea>
+                </div>
+                <button type="submit" class="btn-submit">Upload</button>
+            </form>
+        </div>
+    </div>
+    <div class="ml-8 flex flex-col gap-1">
+        {% for item in pns %}
+        <div class="mb-3">
+            <a href="/process/{{ item }}" class="px-3 py-2 border rounded bg-white w-100 h-100">
+                {{ item }}
+            </a>
+        </div>
+        {% endfor %}
+        <a class="bg-red-600 text-white w-100 p-3 rounded text-center" href="/clear/pns">Clear PNS</a>
+    </div>
 </div>
 
-<div id="graph"></div>
 
 
-<script type="text/javascript">
-    // Get the data passed from Flask
-    var dates = {{ dates | tojson }};
-    var values = {{ values | tojson }};
-    var y_fit = {{ y_fit | tojson }};
-    var slope = {{ slope }};
-    var intercept = {{ intercept }};
 
-    // Create the trace for the original data
-    var traceOriginal = {
-        x: dates,
-        y: values,
-        mode: 'lines+markers',
-        type: 'scatter',
-        name: 'Random Values'
-    };
-
-    // Create the trace for the best-fit line
-    var traceFit = {
-        x: dates,
-        y: y_fit,
-        mode: 'lines',
-        type: 'scatter',
-        name: `Best Fit Line (Slope: ${slope.toFixed(2)})`,
-        line: {
-            dash: 'dot',
-            color: 'red'
-        }
-    };
-
-    var data = [traceOriginal, traceFit];
-
-    var layout = {
-        title: 'Random Values Over Time',
-        xaxis: {
-            title: 'Date'
-        },
-        yaxis: {
-            title: 'Value'
-        }
-    };
-
-    Plotly.newPlot('graph', data, layout);
-</script>
 {% endblock content %}

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="my-4">
+    <h1 class="text-4xl">Display Bulk</h1>
+</div>
+
+<div class="w-full">
+    {% for plot_html in graphs_html %}
+    <div class="mb-4">
+        {{ plot_html | safe }}
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock content %}

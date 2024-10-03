@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="my-4">
+    <h1 class="text-4xl">Display</h1>
+</div>
+
+<div>
+    {{ plot_fig | safe }}
+</div>
+<div class="hidden">
+    {{ part_list }}
+</div>
+{% endblock content %}
